@@ -90,5 +90,40 @@ class PlayerControllerMinimax(PlayerController):
         # NOTE: Don't forget to initialize the children of the current node 
         #       with its compute_and_get_children() method!
 
-        random_move = random.randrange(5)
-        return ACTION_TO_STR[random_move]
+        #random_move = random.randrange(5)
+        #return ACTION_TO_STR[random_move]
+
+        value, node = minimax(initial_tree_node, 5)
+        return ACTION_TO_STR[node.move]
+
+
+# sketch:
+
+def heuristic(state):
+    return state.player_scores[0] - state.player_scores[1] 
+
+def minimax(node, depth):
+    if depth == 0:
+        return heuristic(node.state), node
+    else:
+        children = node.compute_and_get_children()
+        if node.state.player == 0:
+            max_value = -inf
+            max_child = None
+            for child in children:
+                value, node = minimax(child, depth-1)
+                if value > max_value:
+                    max_value = value
+                    max_child = child
+            return max_value, max_child
+        elif node.state.player == 1:
+            min_value = inf
+            min_child = None
+            for child in children:
+                value, node = minimax(child, depth-1)
+                if value < min_value:
+                    min_value = value
+                    min_child = child
+            return min_value, min_child
+
+#
