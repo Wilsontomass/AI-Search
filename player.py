@@ -1,15 +1,10 @@
 #!/usr/bin/env python3
-from __future__ import annotations
-
-import random
-from functools import lru_cache
+from math import inf
 from typing import Iterable, List, Optional
-
-from numpy import inf
 
 from fishing_game_core.game_tree import Node, State
 from fishing_game_core.player_utils import PlayerController
-from fishing_game_core.shared import ACTION_TO_STR, OPPOSITE_MOVES
+from fishing_game_core.shared import ACTION_TO_STR
 
 
 class PlayerControllerHuman(PlayerController):
@@ -32,28 +27,22 @@ class PlayerControllerHuman(PlayerController):
 
 class SuperModelNode:
 
-    children: Optional[List[SuperModelNode]]
-
     def __init__(self, node: Node):
         self.node = node
         self.children = None
         self.heuristic_value = heuristic(self.node.state)
-        self.sorted = False
 
-    @lru_cache(maxsize=None)
     def compute_and_get_children(self):
-        self.children = [SuperModelNode(child) for child in self.node.compute_and_get_children()]
-        return self.children
-
-    def sort_children(self) -> List[SuperModelNode]:
-        """Should only be run after compute_and_get_children"""
-        if self.sorted:
+        if self.children:
             return self.children
+        self.children = [SuperModelNode(child) for child in self.node.compute_and_get_children()]
+        return self.sort_children()
 
+    def sort_children(self):
+        """Should only be run after compute_and_get_children"""
         reverse = True if self.node.state.player == 0 else False
         # places the highest value node to be searched first
         self.children.sort(key=lambda n: n.heuristic_value, reverse=reverse)
-        self.sorted = True
         return self.children
 
 
@@ -78,15 +67,16 @@ class SuperModel:
                     break
 
         value, s_node = self.alphabeta(next_node, self.depth, -inf, inf)
+        if s_node is None:
+            return 0
         self.tree = s_node  # we start from here next time
         return s_node.node.move
 
-    def alphabeta(self, s_node: SuperModelNode, depth: int, alpha: int, beta: int):
+    def alphabeta(self, s_node: SuperModelNode, depth: int, alpha: float, beta: float):
         if depth == 0:
-            return heuristic(s_node.node.state), s_node
+            return s_node.heuristic_value, s_node
         else:
             children = s_node.compute_and_get_children()
-            s_node.sort_children()
             player = s_node.node.state.player
             if player == 0:
                 max_value = -inf
@@ -124,7 +114,6 @@ class SuperModel:
 
 
 class PlayerControllerMinimax(PlayerController):
-
 
     def __init__(self):
         super(PlayerControllerMinimax, self).__init__()
@@ -171,7 +160,7 @@ class PlayerControllerMinimax(PlayerController):
         Please note that the number of fishes and their types is not fixed between test cases.
         """
         # EDIT THIS METHOD TO RETURN A MINIMAX MODEL ###
-        return SuperModel(initial_data, depth=7)
+        return SuperModel(initial_data, depth=5)
 
     def search_best_next_move(self, model: SuperModel, initial_tree_node: Node):
         """
@@ -195,16 +184,7 @@ class PlayerControllerMinimax(PlayerController):
 
 
 def heuristic(state):
-    val = state.player_scores[0] - state.player_scores[1]
-    caught_p0, caught_p1 = state.get_caught()
-    if caught_p0:
-        val += state.get_fish_scores()[caught_p0]
-    if caught_p1:
-        val -= state.get_fish_scores()[caught_p1]
-    if not caught_p1 and not caught_p0:
-        val = manhattan_dist_value(state, 0) - manhattan_dist_value(state, 1)
-
-    return val
+    return manhattan_dist_value(state, 0) - manhattan_dist_value(state, 1)
 
 
 def manhattan_dist_value(state: State, player):
