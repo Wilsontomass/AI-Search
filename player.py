@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import math
 from math import inf
 import time
 from typing import Optional
@@ -31,7 +32,7 @@ class SuperModelNode:
     def __init__(self, node: Node):
         self.node = node
         self.children = None
-        self.heuristic_value = heuristic(self.node.state)
+        self.heuristic_value = heuristic(self.node)
         self.minimax_value = None  # this can be used to sort instead
         self.minimaxed_children = False
 
@@ -50,9 +51,16 @@ class SuperModelNode:
         # places the highest value node to be searched first
         # We sort on the minimax value (from a previous IDDFS run) if it exist, else the heuristic value
         self.children.sort(key=lambda n: n.minimax_value or n.heuristic_value, reverse=reverse)
-        if all([n.minimax_value is not None for n in self.children]):
+        if all([n.minimax_value is not None for n in self.children]):  # Check if we sorted based on minimax values
             self.minimaxed_children = True
         return self.children
+
+    def __hash__(self):
+        """Use this to check if a node is already visited"""
+        # visited will store the depth and the player hook position. The depth allows us to ensure the fish
+        # are in the same place. Hook pos is for the maximising players hook. We wont check that the opponent
+        # has the same hook pos, as that decreases the likelyhood of matching nodes, and probably doesn't matter ?
+        return hash((self.node.depth, self.node.state.get_hook_positions()[0]))
 
 
 # sketch:
@@ -64,61 +72,76 @@ class SuperModel:
         self.init_data = initial_data
         self.depth = depth
         self.time_limit = None
+#        self.visited = {}
+        self.max_time = None
         self.tree: Optional[SuperModelNode] = None
 
     def next_move(self, next_node: Node):
         # Start timer
         start_time = time.time()
-        max_time = start_time + 0.01
+        self.max_time = start_time + 0.058
 
         next_node = SuperModelNode(next_node)
-        next_node.compute_and_get_children()
-        if self.tree is not None:  # This basically caches all the work we've managed to do
-            # The opponent made a move, we select the subtree that matches that move
-            for child in self.tree.children:
-                if child.node.state.get_hook_positions()[1] == next_node.node.state.get_hook_positions()[1]:
-                    next_node = child
-                    break
+        # manhattan_dist_value_verbose(next_node.node.state, 0)
 
         # IDDFS
         best_child = None
-        for depth in range(2, self.depth+1):  # from 1 to depth
-            if time.time() >= max_time:
-                break
+        children = next_node.compute_and_get_children()
+        alpha = -inf
+#        depth_reached = 0
+        for depth in range(1, self.depth+1):  # from 1 to depth
+#            depth_reached = max(depth_reached, depth)
+#            self.visited = {}  # Need to reset this, since we are going to go one level deeper
             # To save resources, we do a kind of mini alphabeta at this level where we can track the best child
             max_value = -inf
-            for child in next_node.compute_and_get_children():
-                value = self.alphabeta(child, depth-1, -inf, inf, False)
+            for child in children:
+                if time.time() >= self.max_time:
+                    depth = 1  # will cause all children to return quickly
+                # Alpha may change at this level, but beta will not
+                value = self.alphabeta(child, depth-1, alpha, inf, False)
                 if value > max_value:
                     max_value = value
                     best_child = child
-            if best_child is None:
-                return 0, time.time() - start_time
-            self.tree = best_child  # we start from here next time
+                alpha = max(alpha, max_value)
+            if time.time() >= self.max_time:
+                break
+
+#        print(depth_reached)
+        if best_child is None:  # Thanks to IDDFS this should never proc pretty much, maybe if there are no fish?
+            return 0, time.time() - start_time
+        self.tree = best_child  # we start from here next time
         return best_child.node.move, time.time() - start_time
 
     def alphabeta(self, s_node: SuperModelNode, depth: int, alpha: float, beta: float, is_maximising=False) -> float:
         if depth == 0:
             return s_node.heuristic_value
+#        elif s_node in self.visited:
+#            return self.visited[s_node]  # just return the already calculated value
         else:
             children = s_node.compute_and_get_children()
             if is_maximising:
                 max_value = -inf
                 for child in children:
+                    if time.time() >= self.max_time:
+                        depth = 1  # will cause all children to return quickly
                     max_value = max(max_value, self.alphabeta(child, depth - 1, alpha, beta, False))
                     alpha = max(alpha, max_value)
                     if beta <= alpha:
                         break
                 s_node.minimax_value = max_value  # can be used to sort in future
+#                self.visited[s_node] = max_value
                 return max_value
             else:
                 min_value = inf
                 for child in children:
+                    if time.time() >= self.max_time:
+                        depth = 1  # will cause all children to return quickly
                     min_value = min(min_value, self.alphabeta(child, depth - 1, alpha, beta, True))
                     beta = min(beta, min_value)
                     if beta <= alpha:
                         break
                 s_node.minimax_value = min_value  # can be used to sort in future
+#                self.visited[s_node] = min_value
                 return min_value
 
 
@@ -169,7 +192,7 @@ class PlayerControllerMinimax(PlayerController):
         Please note that the number of fishes and their types is not fixed between test cases.
         """
         # EDIT THIS METHOD TO RETURN A MINIMAX MODEL ###
-        return SuperModel(initial_data, depth=7)
+        return SuperModel(initial_data, depth=9)
 
     def search_best_next_move(self, model: SuperModel, initial_tree_node: Node):
         """
@@ -192,8 +215,20 @@ class PlayerControllerMinimax(PlayerController):
         return ACTION_TO_STR[move], s_time
 
 
-def heuristic(state):
-    return manhattan_dist_value(state, 0) - manhattan_dist_value(state, 1)
+def heuristic(node: Node):
+    state = node.state
+    # If a fish is recently caught, at high depth that means that the path we are on is good, so that needs to be
+    # considered
+    score_diff = state.get_player_scores()[0] - state.get_player_scores()[1]
+
+    # Additionally, we consider if we can get other fish based on their distance
+    # But if we have caught a fish, then we just take the full value of that fish into account here
+    caught = state.get_caught()[0]
+    if caught:
+        distance_value_diff = state.get_fish_scores()[caught]
+    else:
+        distance_value_diff = manhattan_dist_value(state, 0) - manhattan_dist_value(state, 1)
+    return score_diff + distance_value_diff
 
 
 def manhattan_dist_value(state: State, player):
@@ -201,7 +236,11 @@ def manhattan_dist_value(state: State, player):
     player_pos = state.get_hook_positions()[player]
 
     fish_closeness_value = -inf
+    other_player_caught = state.get_caught()[1 - player]
     for fish_num, fish_pos in state.get_fish_positions().items():
+        # Make sure that this fish is not caught by the _other_ player. No point calculating for that
+        if fish_num == other_player_caught:
+            continue
         x_abs = abs(player_pos[0] - fish_pos[0])
         dist = min(x_abs, 20 - x_abs) + abs(player_pos[1] - fish_pos[1])
         new_fish_val = state.get_fish_scores()[fish_num] * (1/max(dist, 1))
@@ -215,19 +254,24 @@ def manhattan_dist_value_verbose(state: State, player):
     player_pos = state.get_hook_positions()[player]
 
     fish_closeness_value = -inf
-    best_fish = None
+    best_fish_pos = None
     best_dist = None
+    best_fish_num = None
+    other_player_caught = state.get_caught()[1 - player]
     for fish_num, fish_pos in state.get_fish_positions().items():
+        if fish_num == other_player_caught:
+            continue
         x_abs = abs(player_pos[0] - fish_pos[0])
         dist = (min(x_abs, 20 - x_abs)  # For the wraparound x
                 + abs(player_pos[1] - fish_pos[1]))
         new_fish_val = state.get_fish_scores()[fish_num] * (1 / max(dist, 1))
         if new_fish_val > fish_closeness_value:
             fish_closeness_value = new_fish_val
-            best_fish = fish_pos
+            best_fish_pos = fish_pos
             best_dist = dist
+            best_fish_num = fish_num
 
-    print(f"Fish at {best_fish} is {best_dist} to player {player} hook at {player_pos} with value of {fish_closeness_value}")
+    print(f"Fish {best_fish_num} with value {state.get_fish_scores()[best_fish_num]} at {best_fish_pos} is {best_dist} moves to player {player} hook at {player_pos} with dist_value of {fish_closeness_value}")
 
     return fish_closeness_value
 
