@@ -44,15 +44,10 @@ class SuperModelNode:
 
     def sort_children(self):
         """Should only be run after compute_and_get_children"""
-        if self.minimaxed_children:
-            return self.children
-
         reverse = True if self.node.state.player == 0 else False
         # places the highest value node to be searched first
         # We sort on the minimax value (from a previous IDDFS run) if it exist, else the heuristic value
         self.children.sort(key=lambda n: n.minimax_value or n.heuristic_value, reverse=reverse)
-        if all([n.minimax_value is not None for n in self.children]):  # Check if we sorted based on minimax values
-            self.minimaxed_children = True
         return self.children
 
     def __hash__(self):
@@ -82,17 +77,13 @@ class SuperModel:
         self.max_time = start_time + 0.058
 
         next_node = SuperModelNode(next_node)
-        # manhattan_dist_value_verbose(next_node.node.state, 0)
 
-        # IDDFS
         best_child = None
         best_value = -inf
         children = next_node.compute_and_get_children()
         alpha = -inf
-#        depth_reached = 0
+        # IDDFS
         for depth in range(1, self.depth+1):  # from 1 to depth
-#            depth_reached = max(depth_reached, depth)
-#            self.visited = {}  # Need to reset this, since we are going to go one level deeper
             # To save resources, we do a kind of mini alphabeta at this level where we can track the best child
             max_value = -inf
             for child in children:
@@ -108,6 +99,7 @@ class SuperModel:
             if time.time() >= self.max_time:
                 break
 
+
 #        print(depth_reached)
         if best_child is None:  # Thanks to IDDFS this should never proc pretty much, maybe if there are no fish?
             return 0, time.time() - start_time
@@ -117,8 +109,6 @@ class SuperModel:
     def alphabeta(self, s_node: SuperModelNode, depth: int, alpha: float, beta: float, is_maximising=False) -> float:
         if depth == 0:
             return s_node.heuristic_value
-#        elif s_node in self.visited:
-#            return self.visited[s_node]  # just return the already calculated value
         else:
             children = s_node.compute_and_get_children()
             if is_maximising:
@@ -131,7 +121,6 @@ class SuperModel:
                     if beta <= alpha:
                         break
                 s_node.minimax_value = max_value  # can be used to sort in future
-#                self.visited[s_node] = max_value
                 return max_value
             else:
                 min_value = inf
@@ -143,7 +132,6 @@ class SuperModel:
                     if beta <= alpha:
                         break
                 s_node.minimax_value = min_value  # can be used to sort in future
-#                self.visited[s_node] = min_value
                 return min_value
 
 
@@ -194,7 +182,7 @@ class PlayerControllerMinimax(PlayerController):
         Please note that the number of fishes and their types is not fixed between test cases.
         """
         # EDIT THIS METHOD TO RETURN A MINIMAX MODEL ###
-        return SuperModel(initial_data, depth=9)
+        return SuperModel(initial_data, depth=10)
 
     def search_best_next_move(self, model: SuperModel, initial_tree_node: Node):
         """
@@ -245,7 +233,7 @@ def manhattan_dist_value(state: State, player):
             continue
         x_abs = abs(player_pos[0] - fish_pos[0])
         dist = min(x_abs, 20 - x_abs) + abs(player_pos[1] - fish_pos[1])
-        new_fish_val = state.get_fish_scores()[fish_num] * (1/max(dist, 1))
+        new_fish_val = state.get_fish_scores()[fish_num] * (1/max(dist, 1))  # 11
         fish_closeness_value = max(fish_closeness_value, new_fish_val)
 
     return fish_closeness_value
