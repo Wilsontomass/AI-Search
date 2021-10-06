@@ -86,6 +86,7 @@ class SuperModel:
 
         # IDDFS
         best_child = None
+        best_value = -inf
         children = next_node.compute_and_get_children()
         alpha = -inf
 #        depth_reached = 0
@@ -99,8 +100,9 @@ class SuperModel:
                     depth = 1  # will cause all children to return quickly
                 # Alpha may change at this level, but beta will not
                 value = self.alphabeta(child, depth-1, alpha, inf, False)
-                if value > max_value:
-                    max_value = value
+                max_value = max(max_value, value)
+                if value > best_value:
+                    best_value = value
                     best_child = child
                 alpha = max(alpha, max_value)
             if time.time() >= self.max_time:
