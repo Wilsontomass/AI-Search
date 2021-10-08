@@ -1,3 +1,6 @@
+# Modified by Tomass Wilson and Emelie Wästlund
+# 2021-10-08
+
 #!/usr/bin/env python3
 import math
 from math import inf
@@ -36,13 +39,24 @@ class SuperModelNode:
         self.minimax_value = None  # this can be used to sort instead
 
     def compute_and_get_children(self):
+        """
+        Computes and returns a sorted list of SuperModelNode-children,
+        using the provided compute_and_get_children method as a base.
+        :return: Sorted list of children
+        :rtype: list
+        """
         if self.children:
             return self.children
         self.children = [SuperModelNode(child) for child in self.node.compute_and_get_children()]
         return self.sort_children()
 
     def sort_children(self):
-        """Should only be run after compute_and_get_children"""
+        """
+        Sorts children of the node, either by heuristic value, or by minimax value if it exists.
+        Should only be run after compute_and_get_children.
+        :return: Sorted list of children
+        :rtype: list
+        """
         reverse = True if self.node.state.player == 0 else False
         # places the highest value node to be searched first
         # We sort on the minimax value (from a previous IDDFS run) if it exist, else the heuristic value
@@ -59,6 +73,13 @@ class SuperModel:
         self.max_time = None
 
     def next_move(self, next_node: Node):
+        """
+        Finds the best next move using methods and algorithms such as IDDFS and minimax with alpha-beta pruning.
+        :param next_node: The node from which to find the best move
+        :type next_node: Node object
+        :return: The found best move
+        :rtype: int
+        """
         # Start timer
         start_time = time.time()
         self.max_time = start_time + 0.058  # 58 MS
@@ -92,6 +113,20 @@ class SuperModel:
         return best_child.node.move, time.time() - start_time
 
     def alphabeta(self, s_node: SuperModelNode, depth: int, alpha: float, beta: float, is_maximising=False) -> float:
+        """
+        Evaluates the heuristic value of a node using minimax with alpha-beta pruning,
+        alternatively our heuristic function, depending on the current depth.
+        :param s_node: The node to be evaluated
+        :type s_node: SuperModelNode object
+        :param depth: The depth to search beyond this node
+        :type depth: int
+        :param alpha: The alpha to be used in alpha-beta pruning (from earlier in the search)
+        :type alpha: float
+        :param beta: The beta to be used in alpha-beta pruning (from earlier in the search)
+        :type beta: float
+        :param is_maximising: Whether the current player is maximising or not
+        :type is_maximising: boolean
+        """
         if depth == 0:
             return s_node.heuristic_value
         else:
@@ -156,17 +191,14 @@ class PlayerControllerMinimax(PlayerController):
         :type initial_data: dict
         :return: Minimax model
         :rtype: object
-
         Sample initial data:
         { 'fish0': {'score': 11, 'type': 3},
           'fish1': {'score': 2, 'type': 1},
           ...
           'fish5': {'score': -10, 'type': 4},
           'game_over': False }
-
         Please note that the number of fishes and their types is not fixed between test cases.
         """
-        # EDIT THIS METHOD TO RETURN A MINIMAX MODEL ###
         return SuperModel(initial_data, depth=9)
 
     def search_best_next_move(self, model: SuperModel, initial_tree_node: Node):
@@ -177,20 +209,22 @@ class PlayerControllerMinimax(PlayerController):
         :param initial_tree_node: Initial game tree node
         :type initial_tree_node: game_tree.Node
             (see the Node class in game_tree.py for more information!)
-        :return: either "stay", "left", "right", "up" or "down"
-        :rtype: str
+        :return: either "stay", "left", "right", "up" or "down", time taken to find move in seconds
+        :rtype: str, float
         """
-
-        # EDIT THIS METHOD TO RETURN BEST NEXT POSSIBLE MODE FROM MINIMAX MODEL ###
-
-        # NOTE: Don't forget to initialize the children of the current node
-        #       with its compute_and_get_children() method!
-
         move, s_time = model.next_move(initial_tree_node)
         return ACTION_TO_STR[move], s_time
 
 
 def heuristic(node: Node):
+    """
+    Estimates how beneficial the state of a node is for each player,
+    based on the score, caught fish, and manhattan distance to the closest fish.
+    :param node: Node being evaluated
+    :type node: Node object
+    :return: A heuristic value
+    :rtype: float
+    """
     state = node.state
     # If a fish is recently caught, at high depth that means that the path we are on is good, so that needs to be
     # considered
@@ -207,7 +241,18 @@ def heuristic(node: Node):
 
 
 def manhattan_dist_value(state: State, player):
-    """smaller distance means you are closer to getting the fishes value"""
+    """
+    Calculates a value based on the manhattan distance from a given player
+    to the closest fish as well as the value of the fish using the given state.
+    Smaller distance means you are closer to getting the fishes value,
+    in which case the function returns a greater value.
+    :param state: The current state of the game
+    :type state: State object
+    :param player: The player the calculation is done for, represented as a 0 or a 1
+    :type player: int
+    :return: A value representing the closeness of the closest fish based on 
+    :rtype: float
+    """
     player_pos = state.get_hook_positions()[player]
 
     fish_closeness_value = -inf
