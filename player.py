@@ -243,7 +243,7 @@ def heuristic(node: Node):
 def manhattan_dist_value(state: State, player):
     """
     Calculates a value based on the manhattan distance from a given player
-    to the closest fish as well as the value of the fish using the given state.
+    to the fish with the estimated best combination of closeness and value using the given state.
     Smaller distance means you are closer to getting the fishes value,
     in which case the function returns a greater value.
     :param state: The current state of the game
