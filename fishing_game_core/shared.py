@@ -38,6 +38,14 @@ ACTION_TO_STR = {
     4: "right"
 }
 
+OPPOSITE_MOVES = {
+    0: None,
+    1: 2,
+    2: 1,
+    3: 4,
+    4: 3
+}
+
 TYPE_TO_SCORE = {
     0: 1,
     1: 2,

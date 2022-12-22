@@ -1,5 +1,9 @@
 # Game tree for Fishing Derby
+from __future__ import annotations
+
 from itertools import product
+from typing import List, Union, Tuple
+
 import numpy as np
 from fishing_game_core.shared import OBS_TO_MOVES, ACT_TO_MOVES
 from copy import deepcopy
@@ -102,7 +106,7 @@ class State:
         """
         return self.fish_scores
 
-    def get_caught(self):
+    def get_caught(self) -> Tuple[Union[None, int], Union[None, int]]:
         """
         Return the caught fish of each player
         :return: 2-tuple with the corresponding fish_number or None for each player
@@ -246,7 +250,7 @@ class Node:
 
         self.state = curr_state_s  # Root's state object
 
-    def compute_and_get_children(self):
+    def compute_and_get_children(self) -> List[Node]:
         """
         Populate the node with its children. Then return them.
         :param:
@@ -257,7 +261,7 @@ class Node:
             return []
         
         if len(self.children) != 0: # If we already compute the children 
-            return self.children 
+            return self.children
 
         current_player = self.state.get_player()
         caught = self.state.get_caught()

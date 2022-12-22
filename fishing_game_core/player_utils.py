@@ -1,3 +1,5 @@
+from abc import abstractmethod
+
 from fishing_game_core.shared import SettingLoader
 from fishing_game_core.communicator import Communicator
 
@@ -20,5 +22,6 @@ class PlayerController(SettingLoader, Communicator):
         Communicator.__init__(self)
         self.fishes = None
 
+    @abstractmethod
     def player_loop(self):
         pass
